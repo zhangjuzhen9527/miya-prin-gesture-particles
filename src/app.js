@@ -8,6 +8,8 @@ const CONFIG = {
   targetFps: 58,
   mobileDetectionInterval: 44,
   desktopDetectionInterval: 36,
+  fireballBuildMs: 3000,
+  fireballExplosionMs: 950,
 };
 
 const canvas = document.querySelector("#particle-canvas");
@@ -63,6 +65,14 @@ let fps = 60;
 let fpsStableCounter = 0;
 let fallbackMode = true;
 let cameraReady = false;
+let fireball = {
+  state: "idle",
+  center: { x: 0, y: 0 },
+  startedAt: 0,
+  progress: 0,
+  explosionAt: 0,
+  explosionUntil: 0,
+};
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -142,11 +152,11 @@ function makeParticle(index) {
   const originX = Math.random() * width;
   const originY = Math.random() * height;
   const palette = [
-    [215, 161, 141],
-    [143, 188, 202],
-    [240, 216, 202],
-    [154, 184, 169],
-    [255, 255, 255],
+    [255, 232, 142],
+    [255, 168, 54],
+    [255, 93, 23],
+    [224, 35, 13],
+    [255, 255, 225],
   ];
 
   return {
@@ -154,13 +164,13 @@ function makeParticle(index) {
     originY,
     x: originX + randomBetween(-18, 18),
     y: originY + randomBetween(-18, 18),
-    vx: randomBetween(-0.1, 0.1),
-    vy: randomBetween(-0.1, 0.1),
-    radius: randomBetween(isMobile ? 1.2 : 1.1, isMobile ? 2.6 : 3),
+    vx: randomBetween(-0.22, 0.22),
+    vy: randomBetween(-0.34, 0.12),
+    radius: randomBetween(isMobile ? 1.35 : 1.25, isMobile ? 3.25 : 3.8),
     phase: randomBetween(0, TAU),
-    drift: randomBetween(0.08, 0.3),
+    drift: randomBetween(0.22, 0.72),
     color: palette[index % palette.length],
-    alpha: randomBetween(0.34, 0.78),
+    alpha: randomBetween(0.48, 0.96),
   };
 }
 
@@ -544,6 +554,99 @@ function startDetectionLoop() {
   requestAnimationFrame(detectHands);
 }
 
+function triggerFireballExplosion(now) {
+  if (now - fireball.explosionAt < CONFIG.fireballExplosionMs * 0.7) {
+    return;
+  }
+
+  fireball.state = "exploding";
+  fireball.explosionAt = now;
+  fireball.explosionUntil = now + CONFIG.fireballExplosionMs;
+}
+
+function updateFireball(controls, now) {
+  const pinchControl = controls.find((control) => control.mode === "pinch");
+  const openControl = controls.find((control) => control.mode === "open");
+
+  if (openControl && (fireball.state === "formed" || fireball.progress > 0.42)) {
+    fireball.center.x = lerp(fireball.center.x, openControl.palm.x, 0.12);
+    fireball.center.y = lerp(fireball.center.y, openControl.palm.y, 0.12);
+    triggerFireballExplosion(now);
+    return;
+  }
+
+  if (fireball.state === "exploding") {
+    if (now > fireball.explosionUntil) {
+      fireball.state = "idle";
+      fireball.progress = 0;
+    }
+    return;
+  }
+
+  if (pinchControl) {
+    if (fireball.state !== "forming" && fireball.state !== "formed") {
+      fireball.state = "forming";
+      fireball.startedAt = now;
+      fireball.progress = 0;
+      fireball.center = { ...pinchControl.pinchPoint };
+    }
+
+    fireball.center.x = lerp(fireball.center.x, pinchControl.pinchPoint.x, 0.2);
+    fireball.center.y = lerp(fireball.center.y, pinchControl.pinchPoint.y, 0.2);
+    fireball.progress = clamp(
+      (now - fireball.startedAt) / CONFIG.fireballBuildMs,
+      0,
+      1,
+    );
+    fireball.state = fireball.progress >= 1 ? "formed" : "forming";
+    return;
+  }
+
+  if (fireball.state === "forming") {
+    fireball.progress *= 0.965;
+    if (fireball.progress < 0.04) {
+      fireball.state = "idle";
+      fireball.progress = 0;
+    }
+  }
+}
+
+function applyFireballForces(particle, now) {
+  if (fireball.state === "forming" || fireball.state === "formed") {
+    const progress = fireball.state === "formed" ? 1 : fireball.progress;
+    const dx = fireball.center.x - particle.x;
+    const dy = fireball.center.y - particle.y;
+    const dist = Math.hypot(dx, dy);
+    const radius = lerp(Math.min(width, height) * 0.38, Math.max(width, height) * 1.08, progress);
+
+    if (dist < radius && dist > 1) {
+      const falloff = (1 - dist / radius) ** 0.86;
+      const pull = 0.018 + progress * 0.052;
+      const swirl = 0.008 + progress * 0.026;
+      particle.vx += dx * pull * falloff;
+      particle.vy += dy * pull * falloff;
+      particle.vx += -dy * swirl * falloff;
+      particle.vy += dx * swirl * falloff;
+    }
+  }
+
+  if (fireball.state === "exploding" && now < fireball.explosionUntil) {
+    const elapsed = now - fireball.explosionAt;
+    const progress = clamp(elapsed / CONFIG.fireballExplosionMs, 0, 1);
+    const waveRadius = lerp(40, Math.max(width, height) * 1.05, progress);
+    const dx = particle.x - fireball.center.x;
+    const dy = particle.y - fireball.center.y;
+    const dist = Math.hypot(dx, dy);
+    const wave = Math.max(0, 1 - Math.abs(dist - waveRadius) / 190);
+    const core = Math.max(0, 1 - dist / Math.max(width, height));
+    const direction = normalize(dx, dy);
+    const strength = (wave * 9.5 + core * 3.2) * (1 - progress);
+
+    particle.vx += direction.x * strength;
+    particle.vy += direction.y * strength;
+  }
+}
+
 function applyPalmRepulsion(particle, control) {
   if (control.mode === "pinch") {
     return;
@@ -629,12 +732,16 @@ function getControls(now) {
 }
 
 function updateParticle(particle, controls, now) {
-  const driftX = Math.cos(now * 0.00042 + particle.phase) * particle.drift;
-  const driftY = Math.sin(now * 0.00036 + particle.phase * 1.31) * particle.drift;
-  const homeStrength = fallbackMode ? 0.0052 : 0.0076;
+  const driftX = Math.cos(now * 0.0011 + particle.phase) * particle.drift;
+  const driftY = Math.sin(now * 0.00092 + particle.phase * 1.31) * particle.drift;
+  const fireballActive = fireball.state === "forming" || fireball.state === "formed";
+  const homeStrength = fireballActive ? 0.0022 : fallbackMode ? 0.0048 : 0.0064;
 
-  particle.vx += (particle.originX - particle.x) * homeStrength + driftX * 0.012;
-  particle.vy += (particle.originY - particle.y) * homeStrength + driftY * 0.012;
+  particle.vx += (particle.originX - particle.x) * homeStrength + driftX * 0.026;
+  particle.vy +=
+    (particle.originY - particle.y) * homeStrength +
+    driftY * 0.026 -
+    0.012 * particle.drift;
 
   for (const control of controls) {
     applyIndexFlow(particle, control);
@@ -643,8 +750,10 @@ function updateParticle(particle, controls, now) {
     applyOpenSpread(particle, control);
   }
 
-  particle.vx *= 0.925;
-  particle.vy *= 0.925;
+  applyFireballForces(particle, now);
+
+  particle.vx *= 0.94;
+  particle.vy *= 0.94;
   particle.x += particle.vx;
   particle.y += particle.vy;
 
@@ -661,15 +770,70 @@ function updateParticle(particle, controls, now) {
 
 function drawControlGlow(control) {
   const point = control.mode === "pinch" ? control.pinchPoint : control.palm;
-  const radius = control.mode === "pinch" ? 150 : 126;
-  const alpha = control.mode === "pinch" ? 0.23 : 0.09;
+  const radius = control.mode === "pinch" ? 190 : 150;
+  const alpha = control.mode === "pinch" ? 0.34 : 0.16;
   const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-  gradient.addColorStop(0, `rgba(255, 246, 238, ${alpha})`);
-  gradient.addColorStop(0.45, `rgba(215, 161, 141, ${alpha * 0.34})`);
+  gradient.addColorStop(0, `rgba(255, 234, 148, ${alpha})`);
+  gradient.addColorStop(0.42, `rgba(255, 91, 20, ${alpha * 0.52})`);
   gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
   ctx.fillStyle = gradient;
   ctx.beginPath();
   ctx.arc(point.x, point.y, radius, 0, TAU);
+  ctx.fill();
+}
+
+function drawFireball(now) {
+  if (fireball.state === "idle") {
+    return;
+  }
+
+  if (fireball.state === "exploding") {
+    const progress = clamp(
+      (now - fireball.explosionAt) / CONFIG.fireballExplosionMs,
+      0,
+      1,
+    );
+    const radius = lerp(42, Math.max(width, height) * 0.92, progress);
+    const alpha = (1 - progress) * 0.42;
+    const gradient = ctx.createRadialGradient(
+      fireball.center.x,
+      fireball.center.y,
+      radius * 0.18,
+      fireball.center.x,
+      fireball.center.y,
+      radius,
+    );
+    gradient.addColorStop(0, `rgba(255, 246, 185, ${alpha})`);
+    gradient.addColorStop(0.2, `rgba(255, 128, 28, ${alpha * 0.8})`);
+    gradient.addColorStop(1, "rgba(255, 42, 8, 0)");
+    ctx.strokeStyle = `rgba(255, 184, 72, ${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(fireball.center.x, fireball.center.y, radius, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    return;
+  }
+
+  const progress = fireball.state === "formed" ? 1 : fireball.progress;
+  const pulse = 0.88 + Math.sin(now * 0.011) * 0.12;
+  const radius = lerp(22, isMobile ? 88 : 124, progress) * pulse;
+  const gradient = ctx.createRadialGradient(
+    fireball.center.x,
+    fireball.center.y,
+    0,
+    fireball.center.x,
+    fireball.center.y,
+    radius * 2.2,
+  );
+  gradient.addColorStop(0, `rgba(255, 255, 220, ${0.88 * progress})`);
+  gradient.addColorStop(0.18, `rgba(255, 208, 78, ${0.78 * progress})`);
+  gradient.addColorStop(0.46, `rgba(255, 82, 17, ${0.48 * progress})`);
+  gradient.addColorStop(1, "rgba(255, 30, 6, 0)");
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(fireball.center.x, fireball.center.y, radius * 2.2, 0, TAU);
   ctx.fill();
 }
 
@@ -681,9 +845,11 @@ function drawParticles(controls, now) {
     drawControlGlow(control);
   }
 
+  drawFireball(now);
+
   ctx.globalCompositeOperation = "lighter";
   for (const particle of particles) {
-    const twinkle = 0.74 + Math.sin(now * 0.0011 + particle.phase) * 0.16;
+    const twinkle = 0.8 + Math.sin(now * 0.0032 + particle.phase) * 0.22;
     const [r, g, b] = particle.color;
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${particle.alpha * twinkle})`;
     ctx.beginPath();
@@ -701,6 +867,7 @@ function animate(now) {
   tuneParticleBudget();
 
   const controls = getControls(now);
+  updateFireball(controls, now);
   for (const particle of particles) {
     updateParticle(particle, controls, now);
   }

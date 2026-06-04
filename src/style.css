@@ -1,15 +1,13 @@
 :root {
-  color-scheme: light;
-  --ink: #252831;
-  --muted: #747b86;
-  --pearl: #f8fbfd;
-  --blush: #ffe9df;
-  --aqua: #dff2f6;
-  --sage: #dce8df;
-  --rose: #d7a18d;
-  --line: rgba(37, 40, 49, 0.12);
-  --panel: rgba(255, 255, 255, 0.68);
-  --shadow: rgba(75, 88, 102, 0.14);
+  color-scheme: dark;
+  --ink: #fff3df;
+  --muted: #c99c78;
+  --ember: #ff5a19;
+  --gold: #ffd36b;
+  --red: #cf1f12;
+  --line: rgba(255, 211, 107, 0.2);
+  --panel: rgba(16, 10, 8, 0.72);
+  --shadow: rgba(255, 76, 18, 0.18);
 }
 
 * {
@@ -30,10 +28,10 @@ body {
 body {
   min-height: 100svh;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.3)),
-    radial-gradient(circle at 20% 12%, var(--aqua), transparent 34%),
-    radial-gradient(circle at 86% 86%, var(--blush), transparent 38%),
-    linear-gradient(160deg, #fbfdff 0%, #edf8f5 48%, #fff7f3 100%);
+    radial-gradient(circle at 50% 54%, rgba(255, 98, 25, 0.18), transparent 34%),
+    radial-gradient(circle at 18% 16%, rgba(255, 199, 91, 0.1), transparent 28%),
+    radial-gradient(circle at 88% 86%, rgba(175, 18, 8, 0.24), transparent 34%),
+    linear-gradient(160deg, #030303 0%, #100704 48%, #050505 100%);
   color: var(--ink);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
@@ -47,11 +45,11 @@ body::before {
   pointer-events: none;
   content: "";
   background:
-    linear-gradient(rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.1)),
+    linear-gradient(rgba(255, 156, 56, 0.1), rgba(255, 255, 255, 0.02)),
     repeating-linear-gradient(
       90deg,
-      rgba(37, 40, 49, 0.026) 0,
-      rgba(37, 40, 49, 0.026) 1px,
+      rgba(255, 212, 132, 0.035) 0,
+      rgba(255, 212, 132, 0.035) 1px,
       transparent 1px,
       transparent 42px
     );
@@ -93,7 +91,7 @@ body::before {
 
 .brand-kicker {
   margin: 0 0 14px;
-  color: rgba(116, 123, 134, 0.72);
+  color: rgba(255, 210, 150, 0.68);
   font-size: clamp(11px, 2.8vw, 14px);
   font-weight: 600;
   letter-spacing: 0.2em;
@@ -103,7 +101,7 @@ body::before {
 .brand-mark {
   max-width: 100%;
   margin: 0;
-  color: rgba(37, 40, 49, 0.86);
+  color: rgba(255, 243, 220, 0.92);
   font-family:
     "Times New Roman", ui-serif, Georgia, Cambria, "Times New Roman", serif;
   font-size: clamp(58px, 18vw, 116px);
@@ -111,8 +109,9 @@ body::before {
   letter-spacing: 0;
   line-height: 0.9;
   text-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.84),
-    0 28px 90px rgba(141, 177, 190, 0.22);
+    0 1px 0 rgba(255, 150, 78, 0.34),
+    0 0 34px rgba(255, 99, 24, 0.3),
+    0 32px 100px rgba(255, 76, 18, 0.26);
 }
 
 .brand-mark::after {
@@ -124,7 +123,7 @@ body::before {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(215, 161, 141, 0.7),
+    rgba(255, 186, 84, 0.86),
     transparent
   );
 }
@@ -152,7 +151,7 @@ body::before {
   align-items: center;
   gap: 9px;
   min-height: 22px;
-  color: rgba(37, 40, 49, 0.76);
+  color: rgba(255, 243, 220, 0.86);
   font-size: 14px;
   font-weight: 650;
 }
@@ -162,23 +161,29 @@ body::before {
   height: 9px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: #d7a18d;
-  box-shadow: 0 0 0 5px rgba(215, 161, 141, 0.14);
+  background: #ff7b2b;
+  box-shadow:
+    0 0 0 5px rgba(255, 123, 43, 0.16),
+    0 0 18px rgba(255, 123, 43, 0.64);
 }
 
 .permission-panel.is-ready .status-dot {
-  background: #8eb7a7;
-  box-shadow: 0 0 0 5px rgba(142, 183, 167, 0.16);
+  background: #ffd36b;
+  box-shadow:
+    0 0 0 5px rgba(255, 211, 107, 0.18),
+    0 0 20px rgba(255, 211, 107, 0.7);
 }
 
 .permission-panel.is-error .status-dot {
-  background: #cf7e7e;
-  box-shadow: 0 0 0 5px rgba(207, 126, 126, 0.16);
+  background: #ff4835;
+  box-shadow:
+    0 0 0 5px rgba(255, 72, 53, 0.18),
+    0 0 20px rgba(255, 72, 53, 0.62);
 }
 
 .hint-text {
   margin: 0;
-  color: rgba(76, 83, 94, 0.76);
+  color: rgba(255, 220, 178, 0.72);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -193,11 +198,11 @@ body::before {
 .primary-button {
   min-height: 46px;
   flex: 1 1 auto;
-  border: 1px solid rgba(37, 40, 49, 0.12);
+  border: 1px solid rgba(255, 211, 107, 0.26);
   border-radius: 999px;
   appearance: none;
-  background: rgba(255, 255, 255, 0.82);
-  color: rgba(37, 40, 49, 0.86);
+  background: linear-gradient(135deg, rgba(255, 211, 107, 0.94), rgba(255, 96, 25, 0.9));
+  color: rgba(26, 9, 2, 0.92);
   cursor: pointer;
   font: inherit;
   font-size: 14px;
@@ -220,7 +225,7 @@ body::before {
 
 .fps-meter {
   min-width: 68px;
-  color: rgba(116, 123, 134, 0.74);
+  color: rgba(255, 220, 178, 0.62);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: right;
