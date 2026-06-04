@@ -6,8 +6,8 @@ const CONFIG = {
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs",
   wasmUrl: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm",
   targetFps: 58,
-  mobileDetectionInterval: 82,
-  desktopDetectionInterval: 58,
+  mobileDetectionInterval: 44,
+  desktopDetectionInterval: 36,
 };
 
 const canvas = document.querySelector("#particle-canvas");
@@ -131,9 +131,9 @@ function randomBetween(min, max) {
 
 function getParticleBudget() {
   const area = width * height;
-  const density = isMobile || lowMemory ? 3300 : 2300;
-  const min = isMobile || lowMemory ? 160 : 320;
-  const max = isMobile || lowMemory ? 460 : 920;
+  const density = lowMemory ? 1850 : isMobile ? 1450 : 1500;
+  const min = lowMemory ? 260 : isMobile ? 380 : 520;
+  const max = lowMemory ? 620 : isMobile ? 980 : 1350;
   const motionFactor = reducedMotion ? 0.68 : 1;
   return Math.round(clamp((area / density) * motionFactor, min, max));
 }
@@ -208,11 +208,12 @@ function tuneParticleBudget() {
   }
 
   fpsStableCounter = 0;
-  if (fps < 42 && particles.length > 130) {
-    particles = particles.slice(0, Math.max(130, Math.round(particles.length * 0.84)));
+  const floor = lowMemory ? 220 : isMobile ? 320 : 420;
+  if (fps < 34 && particles.length > floor) {
+    particles = particles.slice(0, Math.max(floor, Math.round(particles.length * 0.9)));
     targetParticleCount = particles.length;
-  } else if (fps > 56 && particles.length < getParticleBudget()) {
-    const nextCount = Math.min(getParticleBudget(), particles.length + 24);
+  } else if (fps > 52 && particles.length < getParticleBudget()) {
+    const nextCount = Math.min(getParticleBudget(), particles.length + 42);
     while (particles.length < nextCount) {
       particles.push(makeParticle(particles.length));
     }
@@ -459,7 +460,7 @@ async function requestCamera() {
       facingMode: { ideal: "user" },
       width: { ideal: isMobile ? 640 : 960, max: 1280 },
       height: { ideal: isMobile ? 480 : 720, max: 720 },
-      frameRate: { ideal: isMobile ? 24 : 30, max: 30 },
+      frameRate: { ideal: 30, max: 30 },
     },
   };
 
@@ -548,7 +549,7 @@ function applyPalmRepulsion(particle, control) {
     return;
   }
 
-  const radius = clamp(control.scale * 0.78, 86, isMobile ? 210 : 260);
+  const radius = clamp(control.scale * 0.9, 108, isMobile ? 260 : 320);
   const dx = particle.x - control.palm.x;
   const dy = particle.y - control.palm.y;
   const dist = Math.hypot(dx, dy);
@@ -558,14 +559,14 @@ function applyPalmRepulsion(particle, control) {
 
   const falloff = (1 - dist / radius) ** 2;
   const direction = normalize(dx, dy);
-  const strength = falloff * (0.36 + control.closeness * 0.42);
+  const strength = falloff * (0.58 + control.closeness * 0.64);
   particle.vx += direction.x * strength;
   particle.vy += direction.y * strength;
 }
 
 function applyIndexFlow(particle, control) {
   const velocity = Math.hypot(control.indexVelocity.x, control.indexVelocity.y);
-  const radius = clamp(92 + velocity * 2.2, 96, isMobile ? 190 : 235);
+  const radius = clamp(118 + velocity * 3.1, 126, isMobile ? 250 : 300);
   const flow = normalize(control.indexVelocity.x, control.indexVelocity.y);
 
   for (const trailPoint of control.trail) {
@@ -578,10 +579,10 @@ function applyIndexFlow(particle, control) {
 
     const falloff = (1 - dist / radius) * trailPoint.life;
     const toward = normalize(dx, dy);
-    particle.vx += toward.x * falloff * 0.024;
-    particle.vy += toward.y * falloff * 0.024;
-    particle.vx += flow.x * falloff * 0.28;
-    particle.vy += flow.y * falloff * 0.28;
+    particle.vx += toward.x * falloff * 0.044;
+    particle.vy += toward.y * falloff * 0.044;
+    particle.vx += flow.x * falloff * 0.48;
+    particle.vy += flow.y * falloff * 0.48;
   }
 }
 
@@ -590,7 +591,7 @@ function applyPinchAttraction(particle, control) {
     return;
   }
 
-  const radius = clamp(control.scale * 1.1, 142, isMobile ? 270 : 340);
+  const radius = clamp(control.scale * 1.26, 172, isMobile ? 330 : 410);
   const dx = control.pinchPoint.x - particle.x;
   const dy = control.pinchPoint.y - particle.y;
   const dist = Math.hypot(dx, dy);
@@ -599,8 +600,8 @@ function applyPinchAttraction(particle, control) {
   }
 
   const falloff = (1 - dist / radius) ** 1.42;
-  particle.vx += dx * 0.022 * falloff * control.pinchStrength;
-  particle.vy += dy * 0.022 * falloff * control.pinchStrength;
+  particle.vx += dx * 0.035 * falloff * control.pinchStrength;
+  particle.vy += dy * 0.035 * falloff * control.pinchStrength;
 }
 
 function applyOpenSpread(particle, control) {
@@ -608,7 +609,7 @@ function applyOpenSpread(particle, control) {
     return;
   }
 
-  const radius = clamp(control.scale * 1.03, 132, isMobile ? 260 : 320);
+  const radius = clamp(control.scale * 1.16, 156, isMobile ? 310 : 380);
   const dx = particle.x - control.palm.x;
   const dy = particle.y - control.palm.y;
   const dist = Math.hypot(dx, dy);
@@ -618,8 +619,8 @@ function applyOpenSpread(particle, control) {
 
   const falloff = (1 - dist / radius) ** 1.8;
   const direction = normalize(dx, dy);
-  particle.vx += direction.x * falloff * 0.62;
-  particle.vy += direction.y * falloff * 0.62;
+  particle.vx += direction.x * falloff * 0.9;
+  particle.vy += direction.y * falloff * 0.9;
 }
 
 function getControls(now) {
@@ -630,7 +631,7 @@ function getControls(now) {
 function updateParticle(particle, controls, now) {
   const driftX = Math.cos(now * 0.00042 + particle.phase) * particle.drift;
   const driftY = Math.sin(now * 0.00036 + particle.phase * 1.31) * particle.drift;
-  const homeStrength = fallbackMode ? 0.0056 : 0.0068;
+  const homeStrength = fallbackMode ? 0.0052 : 0.0076;
 
   particle.vx += (particle.originX - particle.x) * homeStrength + driftX * 0.012;
   particle.vy += (particle.originY - particle.y) * homeStrength + driftY * 0.012;
@@ -642,8 +643,8 @@ function updateParticle(particle, controls, now) {
     applyOpenSpread(particle, control);
   }
 
-  particle.vx *= 0.91;
-  particle.vy *= 0.91;
+  particle.vx *= 0.925;
+  particle.vy *= 0.925;
   particle.x += particle.vx;
   particle.y += particle.vy;
 
