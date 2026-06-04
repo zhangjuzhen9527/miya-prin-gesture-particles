@@ -73,6 +73,10 @@ let fireball = {
   explosionAt: 0,
   explosionUntil: 0,
 };
+let audioContext = null;
+let audioUnlocked = false;
+let gatherSound = null;
+let fireNoiseBuffer = null;
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -137,6 +141,181 @@ function getErrorCopy(error) {
 
 function randomBetween(min, max) {
   return min + Math.random() * (max - min);
+}
+
+function createNoiseBuffer(context, duration = 1) {
+  const length = Math.floor(context.sampleRate * duration);
+  const buffer = context.createBuffer(1, length, context.sampleRate);
+  const data = buffer.getChannelData(0);
+
+  for (let index = 0; index < length; index += 1) {
+    data[index] = Math.random() * 2 - 1;
+  }
+
+  return buffer;
+}
+
+function ensureAudio() {
+  const AudioConstructor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioConstructor) {
+    return null;
+  }
+
+  if (!audioContext) {
+    audioContext = new AudioConstructor();
+    fireNoiseBuffer = createNoiseBuffer(audioContext, 1.6);
+  }
+
+  return audioContext;
+}
+
+async function unlockAudio() {
+  const context = ensureAudio();
+  if (!context) {
+    return;
+  }
+
+  try {
+    await context.resume();
+    audioUnlocked = context.state === "running";
+  } catch (error) {
+    audioUnlocked = false;
+  }
+}
+
+function startGatherSound() {
+  if (!audioUnlocked || gatherSound) {
+    return;
+  }
+
+  const context = ensureAudio();
+  if (!context || !fireNoiseBuffer) {
+    return;
+  }
+
+  const noise = context.createBufferSource();
+  const filter = context.createBiquadFilter();
+  const noiseGain = context.createGain();
+  const oscillator = context.createOscillator();
+  const oscillatorGain = context.createGain();
+  const master = context.createGain();
+
+  noise.buffer = fireNoiseBuffer;
+  noise.loop = true;
+  filter.type = "bandpass";
+  filter.frequency.value = 280;
+  filter.Q.value = 0.8;
+  noiseGain.gain.value = 0;
+  oscillator.type = "sawtooth";
+  oscillator.frequency.value = 68;
+  oscillatorGain.gain.value = 0;
+  master.gain.value = 0.42;
+
+  noise.connect(filter).connect(noiseGain).connect(master);
+  oscillator.connect(oscillatorGain).connect(master);
+  master.connect(context.destination);
+
+  noise.start();
+  oscillator.start();
+  gatherSound = {
+    noise,
+    filter,
+    noiseGain,
+    oscillator,
+    oscillatorGain,
+    master,
+  };
+}
+
+function stopGatherSound() {
+  if (!gatherSound || !audioContext) {
+    return;
+  }
+
+  const now = audioContext.currentTime;
+  gatherSound.noiseGain.gain.cancelScheduledValues(now);
+  gatherSound.oscillatorGain.gain.cancelScheduledValues(now);
+  gatherSound.noiseGain.gain.linearRampToValueAtTime(0, now + 0.14);
+  gatherSound.oscillatorGain.gain.linearRampToValueAtTime(0, now + 0.14);
+  gatherSound.noise.stop(now + 0.18);
+  gatherSound.oscillator.stop(now + 0.18);
+  gatherSound = null;
+}
+
+function updateGatherSound() {
+  if (!audioUnlocked || !audioContext) {
+    return;
+  }
+
+  if (fireball.state !== "forming" && fireball.state !== "formed") {
+    stopGatherSound();
+    return;
+  }
+
+  startGatherSound();
+  if (!gatherSound) {
+    return;
+  }
+
+  const now = audioContext.currentTime;
+  const progress = fireball.state === "formed" ? 1 : fireball.progress;
+  gatherSound.filter.frequency.cancelScheduledValues(now);
+  gatherSound.noiseGain.gain.cancelScheduledValues(now);
+  gatherSound.oscillator.frequency.cancelScheduledValues(now);
+  gatherSound.oscillatorGain.gain.cancelScheduledValues(now);
+  gatherSound.filter.frequency.linearRampToValueAtTime(240 + progress * 900, now + 0.08);
+  gatherSound.noiseGain.gain.linearRampToValueAtTime(0.06 + progress * 0.2, now + 0.08);
+  gatherSound.oscillator.frequency.linearRampToValueAtTime(58 + progress * 46, now + 0.08);
+  gatherSound.oscillatorGain.gain.linearRampToValueAtTime(0.025 + progress * 0.085, now + 0.08);
+}
+
+function playExplosionSound() {
+  if (!audioUnlocked) {
+    return;
+  }
+
+  const context = ensureAudio();
+  if (!context) {
+    return;
+  }
+
+  const now = context.currentTime;
+  const length = Math.floor(context.sampleRate * 0.95);
+  const buffer = context.createBuffer(1, length, context.sampleRate);
+  const data = buffer.getChannelData(0);
+
+  for (let index = 0; index < length; index += 1) {
+    const progress = index / length;
+    data[index] = (Math.random() * 2 - 1) * (1 - progress) ** 2.4;
+  }
+
+  const noise = context.createBufferSource();
+  const filter = context.createBiquadFilter();
+  const noiseGain = context.createGain();
+  const boom = context.createOscillator();
+  const boomGain = context.createGain();
+  const master = context.createGain();
+
+  noise.buffer = buffer;
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(1200, now);
+  filter.frequency.exponentialRampToValueAtTime(120, now + 0.82);
+  noiseGain.gain.setValueAtTime(0.72, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+  boom.type = "sine";
+  boom.frequency.setValueAtTime(82, now);
+  boom.frequency.exponentialRampToValueAtTime(30, now + 0.58);
+  boomGain.gain.setValueAtTime(0.38, now);
+  boomGain.gain.exponentialRampToValueAtTime(0.001, now + 0.64);
+  master.gain.value = 0.82;
+
+  noise.connect(filter).connect(noiseGain).connect(master);
+  boom.connect(boomGain).connect(master);
+  master.connect(context.destination);
+  noise.start(now);
+  boom.start(now);
+  noise.stop(now + 0.95);
+  boom.stop(now + 0.7);
 }
 
 function getParticleBudget() {
@@ -562,6 +741,8 @@ function triggerFireballExplosion(now) {
   fireball.state = "exploding";
   fireball.explosionAt = now;
   fireball.explosionUntil = now + CONFIG.fireballExplosionMs;
+  stopGatherSound();
+  playExplosionSound();
 }
 
 function updateFireball(controls, now) {
@@ -868,6 +1049,7 @@ function animate(now) {
 
   const controls = getControls(now);
   updateFireball(controls, now);
+  updateGatherSound();
   for (const particle of particles) {
     updateParticle(particle, controls, now);
   }
@@ -885,6 +1067,8 @@ function startAnimation() {
 }
 
 function addPointer(event) {
+  unlockAudio();
+
   if (event.target === startButton) {
     return;
   }
@@ -943,6 +1127,9 @@ window.addEventListener("pointermove", movePointer, { passive: true });
 window.addEventListener("pointerup", removePointer, { passive: true });
 window.addEventListener("pointercancel", removePointer, { passive: true });
 
-startButton.addEventListener("click", startGestureTracking);
+startButton.addEventListener("click", async () => {
+  await unlockAudio();
+  startGestureTracking();
+});
 
 boot();

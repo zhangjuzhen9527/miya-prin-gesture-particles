@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#f8fbfd" />
+    <meta
+      name="description"
+      content="MiyaPrin mobile gesture particle demo with MediaPipe Hand Landmarker and Canvas."
+    />
+    <title>MiyaPrin Gesture Particles</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <canvas id="particle-canvas" aria-hidden="true"></canvas>
+
+    <video
+      id="camera"
+      autoplay
+      muted
+      playsinline
+      aria-hidden="true"
+    ></video>
+
+    <section class="permission-panel" aria-live="polite">
+      <div class="status-line">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="status-text" class="visually-hidden">正在准备手势识别</span>
+      </div>
+      <p id="hint-text" class="visually-hidden">
+        请允许浏览器使用前置摄像头，摄像头画面不会显示在页面中。
+      </p>
+      <div class="action-row">
+        <button
+          id="start-camera"
+          class="primary-button"
+          type="button"
+          aria-label="开启手势互动"
+        ></button>
+        <span id="fps-meter" class="visually-hidden">FPS --</span>
+      </div>
+    </section>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
